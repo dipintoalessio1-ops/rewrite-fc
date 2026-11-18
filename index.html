@@ -76,8 +76,27 @@ function startingTransferBudget(tier,club){if(Object.prototype.hasOwnProperty.ca
 function start(){let club=$('club').value.trim(),city=$('city').value.trim(),scenario=document.querySelector('input[name=scenario]:checked')?.value,tier=$('tier').value,year=Number($('year').value);if(!club||!city||!scenario||!leagues[tier]){alert('Compila squadra, città, scenario e campionato.');return}let l=leagues[tier],cfg=scenarios[scenario];let names=[club,...l.clubs.filter(x=>x.toLowerCase()!==club.toLowerCase()).slice(0,l.count-1)];if(names.length!==l.count){alert('Impossibile creare il campionato.');return}state={version:4,club,city,scenario,tier,year,budget:cfg.budget,trust:cfg.trust,round:0,teams:names.map((name,id)=>({id,name,pts:0,played:0,win:0,draw:0,loss:0,gf:0,ga:0})),fixtures:makeFixtures(l.count),results:[],players:[],staff:[{role:'Allenatore',name:'Andrea Morelli',skill:67,delegated:true},{role:'Direttore sportivo',name:'Marco Rinaldi',skill:64,delegated:false},{role:'Responsabile scouting',name:'Davide Ferri',skill:62,delegated:true},{role:'Preparatore atletico',name:'Luca Romano',skill:65,delegated:true},{role:'Responsabile vivaio',name:'Nicola Costa',skill:61,delegated:true},{role:'Direttore finanziario',name:'Paolo Serra',skill:66,delegated:false}],dialogIndex:0,log:[],flags:{},pendingEvent:null,eventsSeen:[],negotiation:null,sponsorDeals:[],ended:false};if(window.acquiredClub){state.acquisition=window.acquiredClub;state.budget=Math.max(0,window.acquiredClub.capital-window.acquiredClub.price);state.trust=50;state.log.unshift({who:'Proprietà uscente',question:'Acquisizione di '+club,reply:'Accordo concluso per '+money(window.acquiredClub.price),impact:'Nuovo proprietario insediato; capitale residuo '+money(state.budget)});window.acquiredClub=null;}if(state.acquisition){state.budget=startingTransferBudget(state.tier,state.club);state.budgetEstimated=true;}state.players=state.acquisition?clubRoster(state.tier,state.club):makePlayers(state);save();render()}
 function newCareer(){if(state&&!confirm('Creare una nuova carriera? Il salvataggio attuale sarà sostituito. Puoi esportarlo prima dalla sezione Società.'))return;state=null;localStorage.removeItem(NEW);localStorage.removeItem(KEY);$('welcome').classList.add('hide');$('game').classList.add('hide');$('navigation').classList.add('hide');$('setup').classList.remove('hide');$('club').value='';$('city').value='';window.acquiredClub=null;window.acquisitionDeal=null;document.querySelector('input[name=entry][value=create]').checked=true;entryChanged();document.querySelectorAll('input[name=scenario]').forEach(x=>x.checked=false);$('tier').innerHTML='<option value="">Seleziona prima uno scenario</option>'}
 function resume(){render()}function tab(name){active=name;document.querySelectorAll('.page').forEach(x=>x.classList.toggle('hide',x.id!==name));document.querySelectorAll('.nav button').forEach((x,i)=>x.classList.toggle('active',['home','squad','market','league','office'][i]===name))}
-function score(r,strengthA,strengthB){let pA=Math.max(.3,Math.min(2.5,1.25+(strengthA-strengthB)/24));let pB=Math.max(.3,Math.min(2.5,1.25+(strengthB-strengthA)/24));return [Math.min(6,Math.floor(r()*pA+r()*pA+r()*pA)),Math.min(6,Math.floor(r()*pB+r()*pB+r()*pB))]}
-function advance(){if(!state||state.ended)return;if(state.pendingEvent){active='home';render();return;}if(state.dialogIndex<scenarios[state.scenario].dialogs.length){active='home';render();alert('Prima rispondi all’incontro societario in sospeso.');return;}let day=state.fixtures[state.round];if(!day){state.ended=true;save();render();return}let r=seed(hash(state.club+state.year+state.round+state.scenario)),matches=[];for(let [a,b] of day){let A=state.teams[a],B=state.teams[b];let strengthA=leagues[state.tier].strength+(a===0?state.players.slice(0,11).reduce((s,p)=>s+p.rating,0)/11-leagues[state.tier].strength:randInt(r,-6,6));let strengthB=leagues[state.tier].strength+(b===0?state.players.slice(0,11).reduce((s,p)=>s+p.rating,0)/11-leagues[state.tier].strength:randInt(r,-6,6));let [ga,gb]=score(r,strengthA,strengthB);A.played++;B.played++;A.gf+=ga;A.ga+=gb;B.gf+=gb;B.ga+=ga;if(ga>gb){A.win++;A.pts+=3;B.loss++}else if(ga<gb){B.win++;B.pts+=3;A.loss++}else{A.draw++;B.draw++;A.pts++;B.pts++}matches.push({a:A.name,b:B.name,ga,gb})}state.round++;state.results.unshift({round:state.round,matches});let own=matches.find(m=>m.a===state.club||m.b===state.club);let goals=own.a===state.club?[own.ga,own.gb]:[own.gb,own.ga];state.trust=Math.max(0,Math.min(100,state.trust+(goals[0]>goals[1]?2:goals[0]<goals[1]?-2:0)));state.ended=state.round===state.fixtures.length;if(!state.ended){advanceMarket();state.pendingEvent=createSeasonEvent();}save();render()}
+const POWER2627={
+'Inter':94,'Napoli':92,'Juventus':91,'Milan':90,'Atalanta':88,'Roma':87,'Bologna':85,'Lazio':84,'Fiorentina':82,'Como':81,'Torino':79,'Udinese':78,'Genoa':77,'Sassuolo':77,'Parma':76,'Cagliari':75,'Lecce':74,'Venezia':74,'Monza':73,'Frosinone':72,
+'Palermo':83,'Sampdoria':80,'Empoli':80,'Hellas Verona':79,'Pisa':78,'Cremonese':78,'Bari':77,'Catanzaro':77,'Modena':76,'Cesena':75,'Juve Stabia':74,'Avellino':73,'Mantova':73
+};
+function clubPower(name,tier){
+ let base=leagues[tier]?.strength||70;
+ if(Object.prototype.hasOwnProperty.call(POWER2627,name))return POWER2627[name];
+ let noise=(seed(hash('power|'+tier+'|'+name))()-.5)*10;
+ return Math.max(42,Math.min(96,base+noise));
+}
+function poisson(r,lambda){let p=Math.exp(-lambda),n=0,v=1;do{n++;v*=Math.max(.000001,r())}while(v>p&&n<9);return n-1}
+function score(r,strengthA,strengthB){
+ let diff=strengthA-strengthB;
+ let xgA=Math.max(.32,Math.min(3.6,1.36*Math.exp(diff/20)));
+ let xgB=Math.max(.28,Math.min(3.3,1.23*Math.exp(-diff/20)));
+ return [Math.min(7,poisson(r,xgA)),Math.min(7,poisson(r,xgB))];
+}
+function advance(){if(!state||state.ended)return;if(state.pendingEvent){active='home';render();return;}if(state.dialogIndex<scenarios[state.scenario].dialogs.length){active='home';render();alert('Prima rispondi all’incontro societario in sospeso.');return;}let day=state.fixtures[state.round];if(!day){state.ended=true;save();render();return}let r=seed(hash(state.club+state.year+state.round+state.scenario)),matches=[];for(let [a,b] of day){let A=state.teams[a],B=state.teams[b];let strengthA=clubPower(A.name,state.tier)+(a===0?Math.max(-6,Math.min(6,(state.players.slice(0,11).reduce((v,p)=>v+(Number(p.rating)||70),0)/Math.max(1,Math.min(11,state.players.length))-leagues[state.tier].strength)*.25)):0);
+let strengthB=clubPower(B.name,state.tier)+(b===0?Math.max(-6,Math.min(6,(state.players.slice(0,11).reduce((v,p)=>v+(Number(p.rating)||70),0)/Math.max(1,Math.min(11,state.players.length))-leagues[state.tier].strength)*.25)):0);
+strengthA+=2.2;
+let [ga,gb]=score(r,strengthA,strengthB);A.played++;B.played++;A.gf+=ga;A.ga+=gb;B.gf+=gb;B.ga+=ga;if(ga>gb){A.win++;A.pts+=3;B.loss++}else if(ga<gb){B.win++;B.pts+=3;A.loss++}else{A.draw++;B.draw++;A.pts++;B.pts++}matches.push({a:A.name,b:B.name,ga,gb})}state.round++;state.results.unshift({round:state.round,matches});let own=matches.find(m=>m.a===state.club||m.b===state.club);let goals=own.a===state.club?[own.ga,own.gb]:[own.gb,own.ga];state.trust=Math.max(0,Math.min(100,state.trust+(goals[0]>goals[1]?2:goals[0]<goals[1]?-2:0)));state.ended=state.round===state.fixtures.length;if(!state.ended){advanceMarket();state.pendingEvent=createSeasonEvent();}save();render()}
 function createSeasonEvent(){
  const played=state.round, table=[...state.teams].sort((a,b)=>b.pts-a.pts||(b.gf-b.ga)-(a.gf-a.ga));
  const rank=table.findIndex(t=>t.id===0)+1;
@@ -974,6 +993,33 @@ window.render=function(){priorRender();if(!state)return;r();activateTransfers();
  window.r21FinishMatch=function(){const before=day();oldFinish();if(day()!==before){createOffer();expire();window.render()}};
  const oldNext=window.r21NextAction;
  window.r21NextAction=function(){const before=day();oldNext();if(day()!==before){createOffer();expire();window.render()}};
+})();
+</script>
+
+<style>
+.r29-summary{margin-top:16px;padding:16px;border:1px solid #455264;border-radius:16px;background:#202b39}
+.r29-summary h3{margin:0 0 10px}.r29-summary p{line-height:1.5}
+</style>
+<script>
+(function(){
+ const original=window.render;
+ function renderSeasonReview(){
+  if(typeof state==='undefined'||!state||!state.teams||!state.fixtures)return;
+  let root=document.getElementById('league');
+  if(!root)return;
+  root.querySelector('#r29SeasonReview')?.remove();
+  let all=[...state.teams].sort((a,b)=>b.pts-a.pts||(b.gf-b.ga)-(a.gf-a.ga)||b.gf-a.gf);
+  let finished=state.round>=state.fixtures.length;
+  let down=state.tier==='a'?3:state.tier==='b'?3:state.tier.startsWith('c')?4:state.tier==='d'?4:3;
+  let box=document.createElement('section');box.id='r29SeasonReview';box.className='r29-summary';
+  box.innerHTML='<h3>Zona promozione e retrocessione</h3>'+
+   '<p class="muted">Proiezione '+(finished?'finale':'provvisoria')+' basata sulla classifica. Gli spareggi e i movimenti tra gironi saranno integrati nel motore delle stagioni successive.</p>'+
+   (state.tier==='a'?'<p><b>Retrocessione diretta (ultime 3):</b> '+all.slice(-3).map(t=>t.name).join(', ')+'</p>':
+   '<p><b>Prima posizione:</b> '+(all[0]?.name||'—')+'</p><p><b>Zona retrocessione (indicativa):</b> '+all.slice(-down).map(t=>t.name).join(', ')+'</p>');
+  root.appendChild(box);
+ }
+ window.render=function(){original();try{renderSeasonReview()}catch(e){console.warn('Season review',e)}};
+ renderSeasonReview();
 })();
 </script>
 </body></html>
