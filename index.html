@@ -779,7 +779,7 @@ function office(){let root=document.getElementById('office');if(!root)return;let
 let html='<div class="card"><h2>Ufficio</h2><p class="muted">Gestione societaria</p>';
 if(officeTab==='main'){html+='<div class="r21-office">'+names.map(([id,ico,title,desc])=>'<button onclick="r21Office(\''+id+'\')"><span class="r21-ico">'+ico+'</span><span><b>'+title+'</b><span class="r21-desc">'+desc+'</span></span>'+(count(id)?'<span class="r21-dot">'+count(id)+'</span>':'')+'<span class="r21-arrow">›</span></button>').join('')+'</div>'}
 else{html+='<div class="r21-top"><button class="secondary" onclick="r21Office(\'main\')">← Ufficio</button><h3>'+q(names.find(x=>x[0]===officeTab)?.[2]||'Ufficio')+'</h3></div>';
-if(officeTab==='staff'){let staff=state.staff||[];html+='<h3>Personale in carica</h3>'+staff.map((p,i)=>{let notices=inbox.filter(x=>!x.read&&!x.reply&&x.type==='staff'&&r25Kind(x)==='staff'&&((p.id!=null&&x.personId!=null&&String(x.personId)===String(p.id))||(!!x.person&&x.person===p.name)));return '<div class="r21-staff-person"><span class="r22-staff-info"><b>'+q(p.name||p.role||'Membro staff')+'</b><small class="r21-desc">'+q(p.role||p.job||'Staff societario')+'</small></span><button class="secondary r22-staff-open" onclick="r21StaffPerson('+i+')">Apri scheda <span aria-hidden="true">›</span></button>'+(notices.length?'<span class="r22-notice" aria-label="'+notices.length+' comunicazioni">'+notices.length+'</span>':'')+'</div>'}).join('');html+='<h3>Richieste di lavoro</h3><p class="muted">Le candidature spontanee si gestiscono qui, senza interrompere il calendario.</p><div id="r21Applicants"></div>'}
+if(officeTab==='staff'){let staff=state.staff||[];html+='<h3>Personale in carica</h3>'+staff.map((p,i)=>{let notices=inbox.filter(x=>!x.read&&!x.reply&&x.type==='staff'&&r25Kind(x)==='staff'&&((p.id!=null&&x.personId!=null&&String(x.personId)===String(p.id))||(!!x.person&&x.person===p.name)));return '<div class="r21-staff-person"><span class="r22-staff-info"><b>'+q(p.name||p.role||'Membro staff')+'</b><small class="r21-desc">'+q(p.role||p.job||'Staff societario')+'</small></span><button class="secondary r22-staff-open" onclick="r21StaffPerson('+i+')">Apri scheda <span aria-hidden="true">›</span></button>'+(notices.length?'<span class="r22-notice" aria-label="'+notices.length+' comunicazioni">'+notices.length+'</span>':'')+'</div>'}).join('');html+='<h3>Richieste di lavoro</h3><p class="muted">Candidature ricevute e colloqui in corso.</p><div id="r21Applicants"></div>'}
 if(officeTab==='finance')html+='<p>Disponibilità: <b>'+money(state.budget)+'</b></p><p>Le altre operazioni economiche restano disponibili nel gestionale esistente.</p>';
 if(officeTab==='sponsor'){
  let proposals=(state.sponsorInbox||[]).filter(x=>x.status==='new');
@@ -788,7 +788,18 @@ if(officeTab==='sponsor'){
  }
 if(officeTab==='club')html+='<p>Società: <b>'+q(state.club)+'</b></p><p>Stagione '+state.year+'/'+(state.year+1)+'</p>';
 if(officeTab==='archive')html+='<div class="r25-archive-actions"><button class="secondary" onclick="r25Board(\'press\')">Interviste e stampa</button><button class="secondary" onclick="r25Board(\'board\')">Consiglio di amministrazione</button></div>';if(officeTab==='archive')html+=(state.log||[]).slice(0,30).map(x=>'<div class="r21-event"><b>'+q(x.who||'Società')+'</b><p>'+q(x.question||x.reply||'Decisione registrata')+'</p></div>').join('')||'<p>Archivio vuoto.</p>';
-}container.innerHTML=html+'</div>';for(let x of root.children)if(x!==container)x.style.display='none';if(officeTab==='staff'){let target=document.getElementById('r21Applicants');let original=document.getElementById('officeContent');if(target&&original){let b=original.querySelectorAll('button');let applicant=b.length?Array.from(b).filter(x=>/colloquio|candidat/i.test(x.textContent)).slice(0,10):[];if(applicant.length){target.innerHTML='<p class="muted">Apri il pannello originale per gestire le candidature.</p><button class="secondary" onclick="r21LegacyOffice()">Apri gestione staff completa</button>'}else target.innerHTML='<button class="secondary" onclick="r21LegacyOffice()">Gestisci candidature e personale</button>'}}}
+}container.innerHTML=html+'</div>';for(let x of root.children)if(x!==container)x.style.display='none';if(officeTab==='staff'){
+ let target=document.getElementById('r21Applicants');
+ let applications=(state.r14?.staffApplications||[]).filter(x=>!['rejected','hired','accepted'].includes(x.status));
+ if(target)target.innerHTML=applications.length?applications.map(x=>{
+  let id=JSON.stringify(String(x.id)).replace(/"/g,'&quot;');
+  let pending=['offer_pending'].includes(x.status),counter=x.status==='counter';
+  return '<div class="r26-applicant"><div><b>'+q(x.name)+'</b><small>'+q(x.role||'Ruolo non specificato')+' · '+money(Number(x.salary||0))+'/anno</small><small>'+q(x.source||'Candidatura spontanea')+'</small></div><div class="r26-applicant-actions">'+(pending?'<span class="muted">Offerta inviata · risposta in attesa</span>':counter?'<button onclick="r16SignApplicant('+id+')">Accetta controproposta</button><button class="secondary" onclick="r16RejectApplicant('+id+');r21Office(&quot;staff&quot;)">Rifiuta</button>':'<button onclick="r16ShowApplicant('+id+')">Apri profilo e colloquio</button><button class="secondary" onclick="r26RejectApplicant('+id+')">Rifiuta</button>')+'</div></div>';
+ }).join(''):'<p class="muted">Nessuna candidatura in attesa.</p>';
+}
+}
+window.r26RejectApplicant=function(id){let x=(state.r14?.staffApplications||[]).find(a=>String(a.id)===String(id));if(!x)return;if(!confirm('Rifiutare la candidatura di '+x.name+'?'))return;x.status='rejected';save();window.render();};
+
 window.r21Office=function(v){officeTab=v;office()};window.r21LegacyOffice=function(){let root=document.getElementById('office');document.getElementById('r21Office').style.display='none';for(let x of root.children)if(x.id!=='r21Office')x.style.display='';};
 window.r24SponsorReply=function(id,accept){replySponsorInbound(id,accept);office();window.render()};
 window.r24SponsorNegotiate=function(id){sponsorOffer(id);r24SponsorLegacy()};
@@ -837,5 +848,35 @@ function playerBadges(){let list=state.r20?.inbox||[];let buttons=document.query
 function foreign(){let root=document.getElementById('market');if(!root)return;let el=document.getElementById('r21Foreign');if(!el){el=document.createElement('div');el.id='r21Foreign';root.appendChild(el)}el.innerHTML='<div class="card"><h3>Calcio internazionale · Database società</h3><p class="muted">Club esteri disponibili come riferimento per la futura espansione del mercato e delle coppe. Rose e risultati esteri non sono ancora simulati.</p>'+Object.entries(clubsForeign).map(([league,clubs])=>'<details><summary>'+league+' · '+clubs.length+' società</summary><div class="r21-foreign">'+clubs.map(c=>'<span>'+q(c)+'</span>').join('')+'</div></details>').join('')+'</div>'}
 function transfers(){let root=document.getElementById('market');if(!root)return;let box=document.getElementById('r21TransferWindow');if(!box){box=document.createElement('div');box.id='r21TransferWindow';root.prepend(box)}box.innerHTML='<div class="card"><h3>Finestra trasferimenti · '+(openMarket()?'🟢 Aperta':'🔒 Chiusa')+'</h3><p class="muted">Gli accordi conclusi a mercato chiuso saranno ufficializzati soltanto alla prossima apertura.</p>'+(state.r21PendingTransfers||[]).map(t=>'<p>⏳ '+q(t.player.name)+' · trasferimento concordato, in attesa di registrazione</p>').join('')+'</div>'}
 window.render=function(){priorRender();if(!state)return;r();activateTransfers();office();let officeButton=document.querySelectorAll('#navigation button')[4];if(officeButton){let pending=(state.r20?.inbox||[]).filter(x=>x.type==='staff'&&!x.read&&!x.reply).length+(state.sponsorInbox||[]).filter(x=>x.status==='new').length;officeButton.innerHTML='<span>Ufficio</span>'+(pending?'<span class="r23-nav-badge">'+pending+'</span>':'')}home();competitions();playerBadges();transfers();foreign()};
+})();
+</script><style>.r26-applicant{display:grid;gap:12px;padding:16px 0;border-bottom:1px solid #333}.r26-applicant>div:first-child{display:grid;gap:5px}.r26-applicant small{display:block;color:#999}.r26-applicant-actions{display:flex;flex-wrap:wrap;gap:8px}.r26-applicant-actions button{width:auto;flex:1;min-width:125px}.r26-applicant-actions button.secondary{flex:0 1 auto}</style><script>
+/* Alpha 2.1.6 — recupero navigazione e sezioni */
+(function(){
+ const oldTab=window.tab;
+ function recoverSection(name){
+  const ids=['home','squad','market','league','office'];
+  ids.forEach(id=>{const node=document.getElementById(id);if(node)node.classList.toggle('hide',id!==name)});
+  const nav=document.querySelectorAll('#navigation button');nav.forEach((b,i)=>b.classList.toggle('active',ids[i]===name));
+  const root=document.getElementById(name);if(!root)return;
+  if(name==='league'){
+   const preferred=document.getElementById('r20Competition')||document.getElementById('r18League');
+   if(preferred){preferred.style.display='';preferred.classList.remove('hide');}
+   const visible=[...root.children].some(e=>e.style.display!=='none'&&!e.classList.contains('hide')&&e.getBoundingClientRect().height>0);
+   if(!visible){let el=document.getElementById('r26LeagueRecovery');if(!el){el=document.createElement('div');el.id='r26LeagueRecovery';root.prepend(el)}el.style.display='';el.innerHTML='<div class="card"><h3>Campionato</h3><p>La schermata non è stata caricata correttamente.</p><button onclick="r26RetryLeague()">Riprova senza ricaricare la pagina</button></div>'}
+  }
+  if(name==='office'){
+   const panel=document.getElementById('r21Office');if(panel){panel.style.display='';panel.classList.remove('hide')}
+  }
+ }
+ window.r26RetryLeague=function(){try{if(typeof r18Tab==='function')r18Tab('table');if(typeof r20Competition==='function')r20Competition('league');}catch(e){console.error('Ripristino campionato',e)}recoverSection('league')};
+ window.tab=function(name){
+  try{oldTab(name)}catch(e){console.error('Navigazione',name,e)}
+  try{recoverSection(name)}catch(e){console.error('Ripristino sezione',name,e)}
+ };
+ const previousRender=window.render;
+ window.render=function(){
+  try{previousRender()}catch(e){console.error('Aggiornamento interfaccia',e)}
+  try{if(typeof active==='string'&&['home','squad','market','league','office'].includes(active))recoverSection(active)}catch(e){console.error('Ripristino visibilità',e)}
+ };
 })();
 </script></body></html>
