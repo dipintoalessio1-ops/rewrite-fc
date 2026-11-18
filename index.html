@@ -258,7 +258,7 @@ function advanceDay(){
  if(!state||state.ended)return;
  ensurePresidency();
  if(state.pendingEvent||state.dialogIndex<scenarios[state.scenario].dialogs.length){active='home';render();document.getElementById('dialogue')?.scrollIntoView({behavior:'smooth',block:'center'});return;}
- if(state.dayIndex%7===0 && state.dayIndex>0 && state.round<state.fixtures.length){advance();state.dayIndex++;transferTick();if(state.pendingEvent){state.pendingEvent.options=contextualOptions(state.pendingEvent);}save();render();return;}
+ if((state.dayIndex%7===6 || (state.dayIndex%7===0 && state.dayIndex>0)) && state.round<state.fixtures.length){advance();state.dayIndex++;transferTick();if(state.pendingEvent){state.pendingEvent.options=contextualOptions(state.pendingEvent);}save();render();return;}
  state.dayIndex++;
  transferTick();
  const d=gameDate(),window=isWindow(d);
@@ -776,7 +776,7 @@ function activateTransfers(){if(!openMarket())return;let pending=state.r21Pendin
 function clubFixture(){let c=state.r20?.calendar||[];return c.flatMap(x=>x.matches).filter(m=>m.home===state.club||m.away===state.club)}
 function upcoming(){return clubFixture().find(m=>!m.played)}
 function last(){let a=clubFixture().filter(m=>m.played);return a[a.length-1]}
-function fixtureToday(){return clubFixture().find(m=>!m.played&&Number(m.day)===day())||null}
+function fixtureToday(){return clubFixture().find(m=>!m.played&&Number(m.day)<=day()&&Number(m.day)>=day()-1)||null}
 function r25Kind(x){let t=((x.title||'')+' '+(x.body||'')).toLowerCase();return /intervista|conferenza|giornalist|stampa|microfon/.test(t)?'press':/consiglio di amministrazione|priorità societarie|riunione societaria|settore giovanile, strutture/.test(t)?'board':'staff'}
 function assignStaffMessages(){
  let inbox=state.r20?.inbox||[],staff=state.staff||[];
@@ -1020,6 +1020,46 @@ window.render=function(){priorRender();if(!state)return;r();activateTransfers();
  }
  window.render=function(){original();try{renderSeasonReview()}catch(e){console.warn('Season review',e)}};
  renderSeasonReview();
+})();
+</script>
+
+<style>
+.r30-end{padding:16px;margin-top:12px;border:1px solid #64748b;border-radius:16px;background:#202b39}
+.r30-end button{width:100%;margin-top:12px}
+</style>
+<script>
+(function(){
+const previousRender=window.render;
+function seasonEndUI(){
+ if(!window.state)return;
+ let home=document.getElementById('r20Home');if(!home)return;
+ home.querySelector('#r30End')?.remove();
+ if(!state.ended)return;
+ let b=home.querySelector('.r20-buttons');if(b)b.innerHTML='';
+ let area=document.createElement('div');area.id='r30End';area.className='r30-end';
+ let ranking=[...state.teams].sort((a,b)=>b.pts-a.pts||(b.gf-b.ga)-(a.gf-a.ga)||b.gf-a.gf);
+ let rank=ranking.findIndex(t=>t.name===state.club)+1;
+ area.innerHTML='<h3>Stagione '+state.year+'/'+String((state.year+1)%100).padStart(2,'0')+' conclusa</h3><p>'+state.club+' · '+rank+'° posto · '+(ranking[rank-1]?.pts||0)+' punti</p><p class="muted">Puoi iniziare la stagione successiva mantenendo squadra e carriera. In questa versione le promozioni e retrocessioni tra categorie non sono ancora operative: la nuova stagione riparte nello stesso campionato.</p><button onclick="r30NewSeason()">Inizia la stagione successiva</button>';
+ home.appendChild(area);
+}
+window.r30NewSeason=function(){
+ if(!state?.ended)return;
+ if(!confirm('Avviare la stagione '+(state.year+1)+'/'+String((state.year+2)%100).padStart(2,'0')+'? La carriera continua nello stesso campionato; promozioni e retrocessioni non sono ancora implementate.'))return;
+ state.seasonHistory??=[];
+ let table=[...state.teams].sort((a,b)=>b.pts-a.pts||(b.gf-b.ga)-(a.gf-a.ga)||b.gf-a.gf);
+ state.seasonHistory.push({year:state.year,tier:state.tier,table:table.map(t=>({name:t.name,pts:t.pts,played:t.played,gf:t.gf,ga:t.ga}))});
+ state.year++;state.dayIndex=0;state.round=0;state.ended=false;state.results=[];state.pendingEvent=null;
+ state.teams.forEach(t=>{t.pts=0;t.played=0;t.win=0;t.draw=0;t.loss=0;t.gf=0;t.ga=0});
+ state.fixtures=makeFixtures(state.teams.length);
+ if(state.r20){state.r20.calendar=[];state.r20.seeded=false;state.r20.lastMatch=null;state.r20.feedback='Nuova stagione iniziata.'}
+ if(state.r18Management){state.r18Management.matchStats={};state.r18Management.playerTotals={}}
+ for(let p of state.players||[]){p.stats={played:0,goals:0,assists:0};if(Number.isFinite(Number(p.contract)))p.contract=Math.max(0,Number(p.contract)-1)}
+ state.r21PendingTransfers??=[];
+ state.log??=[];state.log.unshift({who:'Segreteria',question:'Inizio stagione '+state.year,reply:'Campionato e calendario rigenerati',impact:'La società mantiene la propria categoria in questa versione'});
+ save();window.render();window.tab?.('home');
+};
+window.render=function(){previousRender();try{seasonEndUI()}catch(e){console.error('season-end UI',e)}};
+if(window.state)try{seasonEndUI()}catch(e){}
 })();
 </script>
 </body></html>
