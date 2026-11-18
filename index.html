@@ -794,7 +794,8 @@ window.r24SponsorReply=function(id,accept){replySponsorInbound(id,accept);office
 window.r24SponsorNegotiate=function(id){sponsorOffer(id);r24SponsorLegacy()};
 window.r24SponsorLegacy=function(){r21LegacyOffice();document.getElementById('sponsors')?.scrollIntoView({block:'center',behavior:'smooth'})};
 function r25Message(x){
- let id=JSON.stringify(String(x.id)),kind=r25Kind(x);
+ if(x.id==null){x.id='staff-msg-'+(state.r20?.inbox||[]).indexOf(x);}
+ let id=JSON.stringify(String(x.id)).replace(/"/g,'&quot;'),kind=r25Kind(x);
  let options=kind==='press'?[['equilibrata','Risposta equilibrata'],['ambiziosa','Mostra ambizione'],['prudente','Invita alla prudenza']]:kind==='board'?[['vivaio','Investire nel vivaio'],['strutture','Migliorare le strutture'],['sponsor','Sviluppare gli sponsor'],['liquidita','Proteggere la liquidità']]:[['approva','Approva'],['valuta','Chiedi approfondimenti'],['rifiuta','Rifiuta']];
  let buttons=options.map(([key,label])=>'<button class="secondary" onclick="r23Reply('+id+','+JSON.stringify(key).replace(/"/g,'&quot;')+')">'+label+'</button>').join('');
  let field='r23text'+String(x.id).replace(/[^a-zA-Z0-9]/g,'');
