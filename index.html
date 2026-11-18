@@ -1031,8 +1031,8 @@ window.render=function(){priorRender();if(!state)return;r();activateTransfers();
 (function(){
 const previousRender=window.render;
 function seasonEndUI(){
- if(!window.state)return;
- let home=document.getElementById('r20Home');if(!home)return;
+ if(typeof state==='undefined'||!state)return;
+ let home=document.getElementById('r20Home')||document.getElementById('home');if(!home)return;
  home.querySelector('#r30End')?.remove();
  if(!state.ended)return;
  let b=home.querySelector('.r20-buttons');if(b)b.innerHTML='';
@@ -1059,7 +1059,49 @@ window.r30NewSeason=function(){
  save();window.render();window.tab?.('home');
 };
 window.render=function(){previousRender();try{seasonEndUI()}catch(e){console.error('season-end UI',e)}};
-if(window.state)try{seasonEndUI()}catch(e){}
+if(typeof state!=='undefined'&&state)try{seasonEndUI()}catch(e){}
+})();
+</script>
+
+<script>
+(function(){
+// Stop on match day before the old weekly auto-simulation can consume the fixture.
+function nextOwnFixture(){
+ if(typeof state==='undefined'||!state)return null;
+ const matches=(state.r20?.calendar||[]).flatMap(x=>x.matches||[]);
+ return matches.filter(x=>!x.played&&(x.home===state.club||x.away===state.club))
+  .sort((a,b)=>Number(a.day)-Number(b.day))[0]||null;
+}
+const oldDay=window.r21OneDay;
+window.r21OneDay=function(){
+ if(!state)return;
+ if(state.ended){window.render();return;}
+ const next=nextOwnFixture(),now=Number(state.dayIndex)||0;
+ if(next&&Number(next.day)<=now){window.r21Watch();return;}
+ if(next&&Number(next.day)===now+1){
+  if(state.pendingEvent||state.dialogIndex<scenarios[state.scenario].dialogs.length){window.render();return;}
+  state.dayIndex=now+1;
+  if(typeof transferTick==='function')transferTick();
+  if(state.r20)state.r20.feedback='Giorno della partita: apri Vedi partita per seguire la cronaca.';
+  save();window.render();return;
+ }
+ oldDay();
+};
+const previousRender=window.render;
+window.render=function(){
+ previousRender();
+ if(!state)return;
+ const home=document.getElementById('r20Home');
+ const buttons=home?.querySelector('.r20-buttons');
+ if(!buttons)return;
+ if(state.ended){
+  buttons.innerHTML='<button onclick="r30NewSeason()">Inizia la stagione successiva</button>';
+  return;
+ }
+ const next=nextOwnFixture(),now=Number(state.dayIndex)||0;
+ if(next&&Number(next.day)<=now){buttons.innerHTML='<button onclick="r21Watch()">▶ Vedi partita</button>'}
+ else {buttons.innerHTML='<button onclick="r21OneDay()">Simula un giorno</button>'}
+};
 })();
 </script>
 </body></html>
