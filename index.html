@@ -1104,4 +1104,40 @@ window.render=function(){
 };
 })();
 </script>
+<script>
+/* Alpha 2.3.3: calendar advancement is never allowed to simulate a fixture. */
+(function(){
+function nextMatch(){
+ if(typeof state==='undefined'||!state)return null;
+ return (state.r20?.calendar||[]).flatMap(r=>r.matches||[])
+  .filter(m=>!m.played&&(m.home===state.club||m.away===state.club))
+  .sort((a,b)=>Number(a.day)-Number(b.day))[0]||null;
+}
+window.r21OneDay=function(){
+ if(typeof state==='undefined'||!state)return;
+ if(state.ended){window.render();return;}
+ if(state.pendingEvent||state.dialogIndex<scenarios[state.scenario].dialogs.length){
+  window.tab?.('home');window.render();return;
+ }
+ const m=nextMatch(),now=Number(state.dayIndex)||0;
+ if(m&&Number(m.day)<=now){window.r21Watch();return;}
+ // Do not call r20Sim or advanceDay here: both can automatically play fixtures.
+ state.dayIndex=now+1;
+ if(typeof transferTick==='function')transferTick();
+ if(typeof activateTransfers==='function')activateTransfers();
+ if(state.r20)state.r20.feedback=m&&Number(m.day)<=state.dayIndex?'Giorno della partita: apri Vedi partita.':'';
+ save();window.render();
+};
+const priorRender=window.render;
+window.render=function(){
+ priorRender();
+ if(typeof state==='undefined'||!state)return;
+ const h=document.getElementById('r20Home');const b=h?.querySelector('.r20-buttons');
+ if(!b)return;
+ if(state.ended){b.innerHTML='<button onclick="r30NewSeason()">Inizia la stagione successiva</button>';return;}
+ const m=nextMatch(),now=Number(state.dayIndex)||0;
+ b.innerHTML=m&&Number(m.day)<=now?'<button onclick="r21Watch()">▶ Vedi partita</button>':'<button onclick="r21OneDay()">Simula un giorno</button>';
+};
+})();
+</script>
 </body></html>
